@@ -380,7 +380,7 @@ const TrendingPage = () => {
                     transform: 'translateY(20px)'
                   }}
                 >
-                  <ProductCard product={product} index={idx} />
+                  <ProductCard product={product} index={idx} source="trending"/>
                 </div>
               ))}
             </div>

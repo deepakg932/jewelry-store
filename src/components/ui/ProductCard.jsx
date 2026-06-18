@@ -1,9 +1,8 @@
 // src/components/ui/ProductCard.jsx
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { useCart } from "@context/CartContext";
+import { Link, useNavigate } from "react-router-dom";
 import { useWishlist } from "@context/WishlistContext";
-
+import imagePLS from "../../assets/ChatGPT Image Jun 18, 2026, 11_13_51 AM.png"
 const formatPrice = (price) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -13,15 +12,37 @@ const formatPrice = (price) => {
   }).format(price);
 };
 
-const ProductCard = ({ product, index }) => {
-  const { addItem } = useCart();
+// Helper to get image URL
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return imagePLS;
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  // If it's a relative path, prepend the storage base URL
+  return `https://jewelerybillingsoftware.com/storage/${imagePath}`;
+};
+
+const ProductCard = ({ product, index, source = 'shop' }) => {
+  const navigate = useNavigate();
   const { isInWishlist, toggleItem } = useWishlist();
   const [isHovered, setIsHovered] = useState(false);
   const isWishlisted = isInWishlist(product.id);
 
+  // Determine image source
+  const imageSrc = getImageUrl(product.imageUrl || product.images || product.image);
 
-  // Ensure images array exists
-  const images =`${product.images}` ;
+  const handleEnquire = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate('/enquiry', {
+      state: {
+        productId: product.id,
+        productName: product.name,
+        productPrice: product.price,
+        productImage: imageSrc,
+      }
+    });
+  };
 
   return (
     <div
@@ -30,29 +51,17 @@ const ProductCard = ({ product, index }) => {
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Image Container */}
-      <Link to={`/product/${product.id}`}>
+      <Link to={`/product/${product.id}`} state={{ from: source }}>
         <div className="relative aspect-[5/5] overflow-hidden bg-gray-100">
           <img
-            src={images}
+            src={imageSrc}
             alt={product.name}
             className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
             loading="lazy"
             onError={(e) => {
-             console.log("e",e)
+              e.target.src = 'https://via.placeholder.com/400x400?text=No+Image';
             }}
           />
-          
-          {/* Second Image on Hover */}
-          {images[1] && isHovered && (
-            <img
-              src={images[1]}
-              alt={`${product.name} - alternate view`}
-              className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 opacity-100"
-              onError={(e) => {
-                e.target.style.display = 'none';
-              }}
-            />
-          )}
 
           {/* Badges */}
           <div className="absolute top-3 left-3 flex flex-col gap-2">
@@ -71,6 +80,11 @@ const ProductCard = ({ product, index }) => {
                 {product.metal_type}
               </span>
             )}
+            {product.isTrending && (
+              <span className="bg-orange-500 text-white text-xs px-3 py-1 rounded-full font-light flex items-center gap-1">
+                🔥 #{product.rank}
+              </span>
+            )}
           </div>
 
           {/* Out of Stock Overlay */}
@@ -83,8 +97,6 @@ const ProductCard = ({ product, index }) => {
           )}
         </div>
       </Link>
-{/* <div className="aspect-[9/5]"> */}
-
 
       {/* Wishlist Button */}
       <button
@@ -113,7 +125,7 @@ const ProductCard = ({ product, index }) => {
 
       {/* Product Info */}
       <div className="p-5">
-        <Link to={`/product/${product.id}`}>
+        <Link to={`/product/${product.id}`} state={{ from: source }}>
           <h3 className="font-light text-gray-900 text-base tracking-wide mb-1 hover:text-gray-600 transition-colors line-clamp-1">
             {product.name}
           </h3>
@@ -152,24 +164,18 @@ const ProductCard = ({ product, index }) => {
           
           {product.inStock && (
             <button
-              onClick={(e) => {
-                e.preventDefault();
-                addItem(product, 1);
-              }}
+              onClick={handleEnquire}
               className="text-gray-500 hover:text-gray-900 text-sm transition-colors duration-300 flex items-center gap-1 group"
-              aria-label="Add to cart"
+              aria-label="Enquire about this product"
             >
               <svg className="w-4 h-4 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-1.5 6M18 13l1.5 6M9 21h6M12 18v3" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
-              <span className="hidden sm:inline">Add</span>
+              <span className="hidden sm:inline">Enquire</span>
             </button>
           )}
         </div>
-        
-      {/* </div> */}
-
-</div>
+      </div>
     </div>
   );
 };

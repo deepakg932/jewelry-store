@@ -594,11 +594,7 @@ const ShopPage = () => {
                         <ProductCard
                           product={{
                             ...product,
-                            images: product.imageUrl
-                              ? [getImageUrl(product.imageUrl)]
-                              : [
-                                  "https://via.placeholder.com/400x400?text=No+Image",
-                                ],
+                            images: product.imageUrl,
                           }}
                           index={idx}
                           viewMode={viewMode}

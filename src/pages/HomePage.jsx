@@ -4,8 +4,9 @@ import { Helmet } from 'react-helmet-async'
 import HeroSection from '@components/home/HeroSection'
 import CategoryIcons from '@components/home/CategoryIcons'
 import FeaturedProducts from '@components/home/FeaturedProducts'
+import LatestProducts from '@components/home/LatestProducts'   // <-- add this
 import OfferSection from '@components/home/OfferSection'
-import TrendingProducts from '@components/home/TrendingProducts'  // Import TrendingProducts
+import TrendingProducts from '@components/home/TrendingProducts'
 import Testimonials from '@components/home/Testimonials'
 import Newsletter from '@components/ui/Newsletter'
 
@@ -19,7 +20,8 @@ const HomePage = () => {
       <HeroSection />
       <CategoryIcons />
       <FeaturedProducts />
-      <TrendingProducts />  {/* Add TrendingProducts section */}
+      <LatestProducts />    {/* New section */}
+      <TrendingProducts />
       <OfferSection />
       <Testimonials />
       <Newsletter />

@@ -21,6 +21,7 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import LatestPage from '@pages/LatestPage';
 
 function App() {
   useEffect(() => {
@@ -50,6 +51,7 @@ function App() {
             <Route index element={<HomePage />} />
             <Route path="shop" element={<ShopPage />} />
             <Route path="/trending" element={<TrendingPage />} />
+            <Route path="/latest" element={<LatestPage />} />
             <Route path="product/:id" element={<ProductDetailPage />} />
             <Route path="cart" element={<CartPage />} />
             <Route path="enquiry" element={<EnquiryPage />} />

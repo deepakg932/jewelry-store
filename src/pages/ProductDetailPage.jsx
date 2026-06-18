@@ -2,11 +2,11 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { useCart } from "@context/CartContext";
 import { useWishlist } from "@context/WishlistContext";
 import { apiService } from "@services/api";
 import { formatPrice } from "@utils/formatters";
 import toast from "react-hot-toast";
+import imagePLS from "../assets/ChatGPT Image Jun 18, 2026, 11_13_51 AM.png"
 
 const ProductDetailPage = () => {
   const { id } = useParams();
@@ -14,28 +14,27 @@ const ProductDetailPage = () => {
   const location = useLocation();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [selectedSize, setSelectedSize] = useState(null);
-  const [quantity, setQuantity] = useState(1);
   const [mainImage, setMainImage] = useState(0);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [isTrending, setIsTrending] = useState(false);
-  const { addItem } = useCart();
+  const [isLatest, setIsLatest] = useState(false);
   const { isInWishlist, toggleItem } = useWishlist();
 
-  // Check if coming from trending page
-  const fromTrending = location.state?.from === 'trending' || 
-                       location.pathname.includes('/trending') ||
+  const fromTrending = location.state?.from === 'trending' ||
                        sessionStorage.getItem('fromTrending') === 'true';
+  const fromLatest = location.state?.from === 'latest' ||
+                     sessionStorage.getItem('fromLatest') === 'true';
 
   useEffect(() => {
     const fetchProduct = async () => {
       setLoading(true);
       try {
-        // First try to get from trending products
-        const trendingResponse = await apiService.getTrendingProducts();
         let foundProduct = null;
         let isTrendingProduct = false;
-        
+        let isLatestProduct = false;
+
+        // 1. Try Trending
+        const trendingResponse = await apiService.getTrendingProducts();
         if (trendingResponse && trendingResponse.products) {
           foundProduct = trendingResponse.products.find(p => p.id === parseInt(id));
           if (foundProduct) {
@@ -43,23 +42,35 @@ const ProductDetailPage = () => {
             setIsTrending(true);
           }
         }
-        
-        // If not found in trending, fetch from regular products
+
+        // 2. If not found, try Latest
+        if (!foundProduct) {
+          const latestResponse = await apiService.getLatestProducts();
+          if (latestResponse && latestResponse.products) {
+            foundProduct = latestResponse.products.find(p => p.id === parseInt(id));
+            if (foundProduct) {
+              isLatestProduct = true;
+              setIsLatest(true);
+            }
+          }
+        }
+
+        // 3. If still not found, fallback to regular products
         if (!foundProduct) {
           const allProducts = await apiService.getProducts();
           foundProduct = allProducts.find(p => p.id === parseInt(id));
           setIsTrending(false);
+          setIsLatest(false);
         }
-        
+
         if (foundProduct) {
-          // Transform product to match expected format
           const transformedProduct = {
             id: foundProduct.id,
             name: foundProduct.name,
             price: foundProduct.price,
             originalPrice: foundProduct.originalPrice || null,
             description: foundProduct.description || "Beautiful handcrafted jewelry piece",
-            images: foundProduct.imageUrl ? [foundProduct.imageUrl] : ['https://via.placeholder.com/600x600?text=No+Image'],
+            images: foundProduct.imageUrl ? [foundProduct.imageUrl] : [imagePLS],
             category: foundProduct.category || "Jewelry",
             sku: foundProduct.sku,
             inStock: foundProduct.inStock !== false,
@@ -68,22 +79,19 @@ const ProductDetailPage = () => {
             metal_type: foundProduct.metal_type,
             purity: foundProduct.purity,
             net_weight: foundProduct.net_weight,
-            sizes: foundProduct.sizes || ["One Size"],
             isNew: foundProduct.isNew || false,
             isBestseller: foundProduct.isBestseller || false,
             isTrending: isTrendingProduct,
+            isLatest: isLatestProduct,
             rank: foundProduct.rank,
             total_quantity_sold: foundProduct.total_quantity_sold,
           };
-          
+
           setProduct(transformedProduct);
-          setSelectedSize(transformedProduct.sizes[0]);
-          
-          // Fetch related products from same category
+
+          // Related products – try from same source if possible
           let otherProducts = [];
-          
           if (isTrendingProduct && trendingResponse && trendingResponse.products) {
-            // Get related from trending
             otherProducts = trendingResponse.products
               .filter(p => p.id !== parseInt(id) && p.category === transformedProduct.category)
               .slice(0, 4)
@@ -93,10 +101,26 @@ const ProductDetailPage = () => {
                 price: p.price,
                 imageUrl: p.imageUrl,
                 category: p.category,
-                isTrending: true
+                isTrending: true,
+                isLatest: false,
               }));
+          } else if (isLatestProduct) {
+            const latestResponse = await apiService.getLatestProducts();
+            if (latestResponse && latestResponse.products) {
+              otherProducts = latestResponse.products
+                .filter(p => p.id !== parseInt(id) && p.category === transformedProduct.category)
+                .slice(0, 4)
+                .map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  price: p.price,
+                  imageUrl: p.imageUrl,
+                  category: p.category,
+                  isTrending: false,
+                  isLatest: true,
+                }));
+            }
           } else {
-            // Get related from regular products
             const allProducts = await apiService.getProducts();
             otherProducts = allProducts
               .filter(p => p.id !== parseInt(id) && p.category === transformedProduct.category)
@@ -107,10 +131,10 @@ const ProductDetailPage = () => {
                 price: p.price,
                 imageUrl: p.imageUrl,
                 category: p.category,
-                isTrending: false
+                isTrending: false,
+                isLatest: false,
               }));
           }
-          
           setRelatedProducts(otherProducts);
         } else {
           toast.error("Product not found");
@@ -124,38 +148,30 @@ const ProductDetailPage = () => {
         setLoading(false);
       }
     };
-    
+
     if (id) {
       fetchProduct();
     }
   }, [id, navigate]);
 
-  const handleAddToCart = () => {
-    if (!product) return;
-    
-    if (product.sizes && product.sizes[0] !== "One Size" && !selectedSize) {
-      toast.error("Please select a size");
-      return;
+  const handleEnquire = () => {
+    if (product) {
+      navigate('/enquiry', {
+        state: {
+          productId: product.id,
+          productName: product.name,
+          productPrice: product.price,
+          productImage: product.images?.[0] || '',
+        }
+      });
     }
-    
-    const cartProduct = {
-      ...product,
-      price: typeof product.price === 'string' ? parseFloat(product.price) : product.price,
-      selectedSize: selectedSize,
-      quantity: quantity
-    };
-    
-    addItem(cartProduct, quantity);
-    toast.success(`${product.name} added to cart!`);
-  };
-
-  const handleBuyNow = () => {
-    navigate("/enquiry");
   };
 
   const handleBack = () => {
     if (isTrending || fromTrending) {
       navigate('/trending');
+    } else if (isLatest || fromLatest) {
+      navigate('/latest');
     } else {
       navigate('/shop');
     }
@@ -199,7 +215,7 @@ const ProductDetailPage = () => {
         <title>{product.name} | LUMIÈRE</title>
         <meta name="description" content={product.description} />
       </Helmet>
-      
+
       <div className="pt-24 pb-16 bg-gradient-to-b from-white to-gray-50/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Breadcrumb with Back Button */}
@@ -211,27 +227,26 @@ const ProductDetailPage = () => {
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 5l7 7-7 7" />
               </svg>
-              <button 
+              <button
                 onClick={handleBack}
                 className="text-gray-500 hover:text-gray-900 transition-colors flex items-center gap-1"
               >
-                {isTrending || fromTrending ? 'Trending' : 'Shop'}
+                {fromTrending ? 'Trending' : (fromLatest ? 'Latest' : 'Shop')}
               </button>
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 5l7 7-7 7" />
               </svg>
               <span className="text-gray-900">{product.name}</span>
             </nav>
-            
-            {/* Back Button */}
-            <button 
+
+            <button
               onClick={handleBack}
               className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              {isTrending || fromTrending ? 'Back to Trending' : 'Back to Shop'}
+              {isTrending || fromTrending ? 'Back to Trending' : (isLatest || fromLatest ? 'Back to Latest' : 'Back to Shop')}
             </button>
           </div>
 
@@ -248,7 +263,7 @@ const ProductDetailPage = () => {
                   }}
                 />
               </div>
-              
+
               {product.images.length > 1 && (
                 <div className="flex gap-3 mt-4">
                   {product.images.map((img, idx) => (
@@ -256,8 +271,8 @@ const ProductDetailPage = () => {
                       key={idx}
                       onClick={() => setMainImage(idx)}
                       className={`w-20 h-20 rounded-lg overflow-hidden border-2 transition-all duration-300 ${
-                        mainImage === idx 
-                          ? "border-gray-900 shadow-md" 
+                        mainImage === idx
+                          ? "border-gray-900 shadow-md"
                           : "border-gray-200 hover:border-gray-400"
                       }`}
                     >
@@ -294,6 +309,11 @@ const ProductDetailPage = () => {
                     🔥 Trending #{product.rank}
                   </span>
                 )}
+                {product.isLatest && (
+                  <span className="bg-blue-500 text-white text-xs px-3 py-1 rounded-full font-light tracking-wide flex items-center gap-1">
+                    ✨ New
+                  </span>
+                )}
                 {!product.inStock && (
                   <span className="bg-red-500 text-white text-xs px-3 py-1 rounded-full font-light tracking-wide">
                     Sold Out
@@ -307,8 +327,7 @@ const ProductDetailPage = () => {
                     {product.name}
                   </h1>
                   <p className="text-gray-500 text-sm mt-2">{product.sku && `SKU: ${product.sku}`}</p>
-                  
-                  {/* Rating */}
+
                   <div className="flex items-center gap-2 mt-3">
                     <div className="flex">
                       {[...Array(5)].map((_, i) => (
@@ -326,8 +345,7 @@ const ProductDetailPage = () => {
                       {product.rating} ({product.reviewCount} reviews)
                     </span>
                   </div>
-                  
-                  {/* Trending Stats */}
+
                   {product.isTrending && product.total_quantity_sold && (
                     <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
                       <span>🔥 {product.total_quantity_sold} sold</span>
@@ -336,8 +354,7 @@ const ProductDetailPage = () => {
                     </div>
                   )}
                 </div>
-                
-                {/* Wishlist Button */}
+
                 <button
                   onClick={() => toggleItem(product)}
                   className="p-3 rounded-full hover:bg-gray-100 transition-all duration-300 hover:scale-110"
@@ -345,8 +362,8 @@ const ProductDetailPage = () => {
                 >
                   <svg
                     className={`w-5 h-5 transition-all ${
-                      isWishlisted 
-                        ? "fill-red-500 stroke-red-500" 
+                      isWishlisted
+                        ? "fill-red-500 stroke-red-500"
                         : "stroke-gray-600 fill-none hover:stroke-red-500"
                     }`}
                     fill="none"
@@ -363,7 +380,6 @@ const ProductDetailPage = () => {
                 </button>
               </div>
 
-              {/* Price */}
               <div className="mt-6">
                 <div className="flex items-baseline gap-3">
                   <span className="text-4xl font-light text-gray-900">
@@ -377,7 +393,6 @@ const ProductDetailPage = () => {
                 </div>
               </div>
 
-              {/* Metal & Purity Info */}
               {(product.metal_type || product.purity || product.net_weight) && (
                 <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
                   <div className="grid grid-cols-3 gap-4">
@@ -403,7 +418,6 @@ const ProductDetailPage = () => {
                 </div>
               )}
 
-              {/* Description */}
               <div className="mt-6">
                 <h3 className="text-sm font-medium text-gray-900 mb-3">Description</h3>
                 <p className="text-gray-600 leading-relaxed">
@@ -411,83 +425,24 @@ const ProductDetailPage = () => {
                 </p>
               </div>
 
-              {/* Size Selection */}
-              {product.sizes && product.sizes[0] !== "One Size" && (
-                <div className="mt-8">
-                  <div className="flex justify-between items-center mb-3">
-                    <span className="text-sm font-medium text-gray-900">
-                      Size
-                    </span>
-                    <button className="text-xs text-gray-500 hover:text-gray-900 transition-colors">
-                      Size Guide
-                    </button>
-                  </div>
-                  <div className="flex gap-3 flex-wrap">
-                    {product.sizes.map((size) => (
-                      <button
-                        key={size}
-                        onClick={() => setSelectedSize(size)}
-                        className={`w-12 h-12 rounded-full border-2 transition-all duration-300 ${
-                          selectedSize === size 
-                            ? "border-gray-900 bg-gray-900 text-white" 
-                            : "border-gray-300 text-gray-600 hover:border-gray-900"
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Quantity and Actions */}
-              <div className="mt-8 space-y-4">
-                <div className="flex gap-4">
-                  <div className="flex items-center border border-gray-300 rounded-full overflow-hidden">
-                    <button
-                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="px-4 py-3 hover:bg-gray-50 transition-colors"
-                      aria-label="Decrease quantity"
-                    >
-                      -
-                    </button>
-                    <span className="w-12 text-center text-gray-900">{quantity}</span>
-                    <button
-                      onClick={() => setQuantity(quantity + 1)}
-                      className="px-4 py-3 hover:bg-gray-50 transition-colors"
-                      aria-label="Increase quantity"
-                    >
-                      +
-                    </button>
-                  </div>
-                  
-                  <button
-                    onClick={handleAddToCart}
-                    disabled={!product.inStock}
-                    className={`flex-1 px-8 py-3 rounded-full transition-all duration-300 ${
-                      product.inStock
-                        ? "bg-gray-900 text-white hover:bg-gray-800 hover:scale-105"
-                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    }`}
-                  >
-                    {product.inStock ? "Add to Cart" : "Sold Out"}
-                  </button>
-                </div>
-                
+              {/* Single Enquire Now Button */}
+              <div className="mt-8">
                 <button
-                  onClick={handleBuyNow}
+                  onClick={handleEnquire}
                   disabled={!product.inStock}
-                  className={`w-full px-8 py-3 rounded-full border-2 transition-all duration-300 ${
+                  className={`w-full px-8 py-4 rounded-full text-lg font-medium transition-all duration-300 ${
                     product.inStock
-                      ? "border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white hover:scale-105"
-                      : "border-gray-300 text-gray-400 cursor-not-allowed"
+                      ? "bg-gray-900 text-white hover:bg-gray-800 hover:scale-[1.02] shadow-lg hover:shadow-xl"
+                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
                   }`}
                 >
-                  Enquire Now
+                  {product.inStock ? 'Enquire Now' : 'Sold Out'}
                 </button>
+                <p className="text-xs text-gray-400 text-center mt-3">
+                  Get more details and pricing information
+                </p>
               </div>
 
-              {/* Additional Info */}
               <div className="mt-8 pt-6 border-t border-gray-200">
                 <div className="flex gap-6 text-sm text-gray-600">
                   <div className="flex items-center gap-2">
@@ -520,19 +475,20 @@ const ProductDetailPage = () => {
                   <div className="w-12 h-px bg-gradient-to-l from-transparent to-gray-400" />
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {relatedProducts.map((relatedProduct) => (
                   <div
                     key={relatedProduct.id}
                     className="group cursor-pointer"
                     onClick={() => {
-                      // Pass state to indicate coming from trending
+                      let state = {};
                       if (relatedProduct.isTrending || isTrending) {
-                        navigate(`/product/${relatedProduct.id}`, { state: { from: 'trending' } });
-                      } else {
-                        navigate(`/product/${relatedProduct.id}`);
+                        state = { from: 'trending' };
+                      } else if (relatedProduct.isLatest || isLatest) {
+                        state = { from: 'latest' };
                       }
+                      navigate(`/product/${relatedProduct.id}`, { state });
                     }}
                   >
                     <div className="aspect-square rounded-xl overflow-hidden bg-gray-100 mb-4 relative">
@@ -547,6 +503,11 @@ const ProductDetailPage = () => {
                       {relatedProduct.isTrending && (
                         <span className="absolute top-2 right-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
                           🔥 Trending
+                        </span>
+                      )}
+                      {relatedProduct.isLatest && (
+                        <span className="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+                          ✨ New
                         </span>
                       )}
                     </div>

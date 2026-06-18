@@ -273,7 +273,7 @@ export const apiService = {
           name: product.name,
           price: parseFloat(product.sale_price) || 0,
           originalPrice: parseFloat(product.mrp) || null,
-          imageUrl: `https://jewelerybillingsoftware.com/storage/${product.image}`,
+          imageUrl: product.image,
           net_weight: product.net_weight,
           metal_type: product.metal_type,
           purity: product.purity,
@@ -327,6 +327,57 @@ export const apiService = {
     }
   },
 
+
+  // ========== LATEST PRODUCTS API ==========
+async getLatestProducts(page = 1, perPage = 20) {
+  console.log("🆕 Fetching latest products...");
+  try {
+    const url = `${API_BASE_URL}/${API_KEY}/latestproduct?page=${page}&per_page=${perPage}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    console.log("Latest products API response:", data);
+
+    if (data.success && data.data && Array.isArray(data.data)) {
+      // Map products
+      const products = data.data.map((product) => ({
+        id: product.id,
+        name: product.name,
+        price: parseFloat(product.sale_price) || 0,
+        originalPrice: null, // not provided in this API
+        imageUrl: product.image ? `https://jewelerybillingsoftware.com/storage/${product.image}` : null,
+        net_weight: product.net_weight,
+        metal_type: product.metal_type,
+        purity: product.purity,
+        sku: product.sku,
+        description: product.description,
+        category_id: product.category_id,
+        category_name: "Jewellery", // fallback
+        category: "Jewellery",
+        badge: "New Arrival",
+        isNew: true,
+        rating: 4.8,
+        reviews: 120,
+        inStock: true,
+        metal: product.metal_type || "Gold",
+        // For compatibility with ProductCard
+        image: product.image, // keep the raw image path for getImageUrl
+      }));
+      // Return with pagination info
+      return {
+        products: products,
+        pagination: data.pagination,
+        filters: data.filters_applied || [],
+        total: data.pagination?.total || products.length
+      };
+    }
+    return { products: [], pagination: null, filters: [] };
+  } catch (error) {
+    console.error("Latest products error:", error);
+    return { products: [], pagination: null, filters: [] };
+  }
+},
+
+
   // Add this method to your apiService object in src/services/api.js
 
   // ========== TRENDING PRODUCTS API ==========
@@ -334,7 +385,7 @@ export const apiService = {
     console.log("🔥 Fetching trending products...");
     try {
       // Using the absolute URL as it's a different base path
-      const url = `https://jewelerybillingsoftware.com/api/trending/products`;
+      const url = `${API_BASE_URL}/${API_KEY}/getTrendingProducts`;
       const response = await fetch(url);
       const data = await response.json();
 
@@ -347,7 +398,7 @@ export const apiService = {
           name: product.name,
           price: parseFloat(product.sale_price) || 0,
           originalPrice: null, // Not provided in this API
-          images: product.image
+          imageUrl: product.image
             ? `https://jewelerybillingsoftware.com/storage/${product.image}`
             : null,
           sku: product.sku,
@@ -393,7 +444,7 @@ export const apiService = {
     console.log(`🔄 Fetching product with ID: ${id}...`);
     try {
       // First try to get from trending products
-      const trendingUrl = `https://jewelerybillingsoftware.com/api/trending/products`;
+      const trendingUrl = `${API_BASE_URL}/${API_KEY}/getTrendingProducts`;
       const trendingResponse = await fetch(trendingUrl);
       const trendingData = await trendingResponse.json();
 
